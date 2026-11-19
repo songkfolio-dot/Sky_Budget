@@ -68,17 +68,21 @@ const m=c=>(c<0?'-':'')+sym()+(Math.abs(c)/100).toLocaleString(undefined,{minimu
 const pm=v=>{const n=parseFloat(String(v).replace(/,/g,''));return isFinite(n)?Math.round(n*100):0};
 const ds=t=>{const d=new Date(t);return +new Date(d.getFullYear(),d.getMonth(),d.getDate())};
 const addD=(t,n)=>{const d=new Date(t);d.setDate(d.getDate()+n);return +d};
+const pd=v=>{if(!v)return 0;const p=v.split('-').map(Number);return +new Date(p[0],p[1]-1,p[2])};
+const di=t=>{if(!t)return'';const d=new Date(t),z=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())};
+const endMs=()=>S&&S.end?ds(S.end)+D-1:0;
+const cur=()=>{const n=Date.now(),e=endMs();return e&&n>e?e:n};
 const wk=t=>addD(ds(t),-((new Date(t).getDay()-S.fw+7)%7));
 const dim=t=>{const d=new Date(t);return new Date(d.getFullYear(),d.getMonth()+1,0).getDate()};
 const calc=(mo,ty,w,days)=>ty==2?w:ty==1?Math.round(mo*7/days):Math.floor(mo/4);
 const rev=t=>{let r=S.r[0];for(const q of S.r)if(q.f<=t)r=q;return r};
 const base=ws=>{const r=rev(ws);return calc(r.m,r.t,r.w,dim(ws))};
 // ---- engine: everything is derived from the expense list ----
-function weeks(upto){const by={},st=ds(S.start);for(const e of S.x)if(e.d>=st){const k=wk(e.d);by[k]=(by[k]||0)+e.a}
+function weeks(upto){upto=endMs()?Math.min(upto,endMs()):upto;const by={},st=ds(S.start),en=endMs();for(const e of S.x)if(e.d>=st&&!(en&&e.d>en)){const k=wk(e.d);by[k]=(by[k]||0)+e.a}
  const o=[];let c=S.c0,w=wk(S.start);const last=Math.max(w,wk(upto));
  while(w<=last){const b=base(w),av=b-c,sp=by[w]||0,f=S.fg.includes(w),co=f?0:Math.max(0,sp-av);o.push({w,b,ci:c,av,sp,rem:av-sp,co});c=co;w=addD(w,7)}return o}
 function month(t){const d=new Date(t),s=+new Date(d.getFullYear(),d.getMonth(),1),e=+new Date(d.getFullYear(),d.getMonth()+1,1),b=rev(e-1).m;
- const sp=S.x.filter(x=>x.d>=Math.max(s,ds(S.start))&&x.d<e).reduce((a,x)=>a+x.a,0);return{b,sp,rem:b-sp}}
+ const sp=S.x.filter(x=>x.d>=Math.max(s,ds(S.start))&&x.d<e&&!(endMs()&&x.d>endMs())).reduce((a,x)=>a+x.a,0);return{b,sp,rem:b-sp}}
 const stat=(sp,av)=>sp>av?'over':(av<=0||sp*100>=av*80)?'warn':'ok';
 const col=s=>s=='over'?'var(--ba)':s=='warn'?'var(--wa)':'var(--ok)';
 function pace(w,now){const e=Math.min(7,Math.max(1,Math.round((ds(now)-w.w)/D)+1)),left=8-e,exp=Math.floor(Math.max(0,w.av)*e/7);
@@ -91,15 +95,17 @@ function form(v){const days=['Sunday','Monday','Tuesday','Wednesday','Thursday',
 <label class="f"><span class="m">Manual weekly amount</span><input id="fw" inputmode="decimal" value="${v.w}"></label>
 <div class="g m" id="pv"></div>
 <label class="f"><span class="m">First day of the week</span><select id="fd">${days.map((d,i)=>`<option value="${i}"${v.d==i?' selected':''}>${d}</option>`).join('')}</select></label>
+<label class="f"><span class="m">Start date</span><input id="fsd" type="date" value="${v.sd}"></label>
+<label class="f"><span class="m">End date (optional)</span><input id="fed" type="date" value="${v.ed}"></label>
 <label class="f"><span class="m">Currency symbol</span><input id="fs" value="${esc(v.s)}" maxlength="4"></label>`}
 function prev(){const e=$('#pv');if(!e)return;const mo=pm($('#fm').value),t=+$('#ft').value,s=$('#fs').value||'$';
  const w=calc(mo,t,pm($('#fw').value),dim(Date.now()));e.textContent=`Monthly ${s}${(mo/100).toFixed(2)} → Weekly ${s}${(w/100).toFixed(2)}`}
-function setup(){return`<h1>Welcome</h1><h2>Set up your budget. You can change it any time in Settings.</h2><div class="g" style="display:flex;flex-direction:column;gap:12px">${form({m:'',t:0,w:'',d:1,s:'$'})}<button class="pri" data-a="start">Start tracking</button></div><p class="m">Your data stays on this device. Nothing is sent anywhere.</p>`}
-function home(){const now=Date.now(),W=weeks(now),w=W[W.length-1],M=month(now),s=stat(w.sp,w.av),ms=stat(M.sp,M.b),P=pace(w,now);
+function setup(){return`<h1>Welcome</h1><h2>Set up your budget. You can change it any time in Settings.</h2><div class="g" style="display:flex;flex-direction:column;gap:12px">${form({m:'',t:0,w:'',d:1,s:'$',sd:di(Date.now()),ed:''})}<button class="pri" data-a="start">Start tracking</button></div><p class="m">Your data stays on this device. Nothing is sent anywhere.</p>`}
+function home(){const now=cur(),W=weeks(now),w=W[W.length-1],M=month(now),s=stat(w.sp,w.av),ms=stat(M.sp,M.b),P=pace(w,now);
  document.documentElement.style.setProperty('--st',col(s));
  const nb=base(addD(w.w,7)),na=nb-w.co,today=S.x.filter(x=>ds(x.d)==ds(now)).sort((a,b)=>b.d-a.d);
  const line=P.delta>=0?`You’re ${m(P.delta)} under pace`:`You’re ${m(-P.delta)} over pace`;
- return`<h1>Budget Tracker</h1><h2>Week of ${new Date(w.w).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</h2>
+ const ended=endMs()&&Date.now()>endMs();return`<h1>Budget Tracker</h1>${ended?`<div class="g" style="border-color:var(--wa)"><b>Tracking ended on ${new Date(S.end).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</b><div class="m">Showing your final week. Change the end date in Settings to keep going.</div></div>`:''}<h2>Week of ${new Date(w.w).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</h2>
 <div class="g row"><div style="position:relative;width:150px;height:150px;flex:none">${ring(w.av>0?w.rem/w.av:0,150,13,col(s))}<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="n" style="font-size:24px;color:${col(s)}">${m(w.rem)}</div><div class="m">left this week</div></div></div>
 <div><div class="m">Safe to spend today</div><div class="n" style="font-size:26px">${m(P.safe)}</div><div style="font-size:14px">${line}</div><div class="m">${m(w.sp)} of ${m(w.av)} spent</div></div></div>
 <div class="row"><div class="g row" style="flex:1;padding:12px">${ring(M.b>0?M.rem/M.b:0,56,7,col(ms))}<div><div class="n" style="color:${col(ms)}">${m(M.rem)}</div><div class="m">month left</div></div></div>
@@ -113,7 +119,7 @@ function list(){const q=F.toLowerCase(),xs=S.x.filter(x=>!q||(x.n+' '+x.c).toLow
  for(const x of xs){const k=ds(x.d);if(k!=cur){cur=k;h+=`<div class="row sp m" style="padding:12px 0 2px"><b>${new Date(k).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</b><b>${m(tot[k])}</b></div>`}h+=row(x)}
  return`<div class="g" style="padding:4px 16px">${h}</div>`}
 const ledger=()=>`<h1>Ledger</h1><input id="q" type="search" placeholder="Search notes or categories" value="${esc(F)}"><div id="ll">${list()}</div>`;
-function settings(){const r=rev(Date.now());return`<h1>Settings</h1><div class="g" style="display:flex;flex-direction:column;gap:12px">${form({m:(r.m/100).toFixed(2),t:r.t,w:(r.w/100).toFixed(2),d:S.fw,s:S.sym})}<p class="m" style="margin:0">Changes apply from this week onward. Past weeks and months keep their old results.</p><button class="pri" data-a="apply">Apply changes</button></div>
+function settings(){const r=rev(Date.now());return`<h1>Settings</h1><div class="g" style="display:flex;flex-direction:column;gap:12px">${form({m:(r.m/100).toFixed(2),t:r.t,w:(r.w/100).toFixed(2),d:S.fw,s:S.sym,sd:di(S.start),ed:di(S.end)})}<p class="m" style="margin:0">Changes apply from this week onward. Past weeks and months keep their old results.</p><button class="pri" data-a="apply">Apply changes</button></div>
 <div class="g" style="display:flex;flex-direction:column;gap:10px"><label class="f"><span class="m">Appearance</span><select id="th"><option value="dark"${S.th=='dark'?' selected':''}>Dark</option><option value="light"${S.th=='light'?' selected':''}>Light</option><option value="auto"${S.th=='auto'?' selected':''}>Match device</option></select></label>
 <label class="f"><span class="m">When the app opens</span><select id="oa"><option value="1"${S.oa!==false?' selected':''}>Add Expense screen</option><option value="0"${S.oa===false?' selected':''}>Home</option></select></label>
 <span class="m">Backup</span><textarea id="bk" rows="3" placeholder="Paste a backup here to restore"></textarea><div class="row"><button class="c" data-a="copy">Copy backup</button><button class="c" data-a="restore">Restore</button></div></div>
@@ -154,9 +160,10 @@ del(id){const e=S.x.find(x=>x.id==id);S.x=S.x.filter(x=>x.id!=id);U=e;save();ren
 undo(){if(U){S.x.push(U);U=null;save();$('#toast').hidden=true;render()}},
 forgive(){ask('Forgive the carryover from last week? This week’s available budget goes back to the full base. This can’t be undone.',()=>{const w=weeks(Date.now()).pop();S.fg.push(addD(w.w,-7));save();render()})},
 start(){const mo=pm($('#fm').value);if(mo<=0){$('#fm').focus();return}
- S={sym:$('#fs').value||'$',fw:+$('#fd').value,start:Date.now(),c0:0,th:'dark',r:[],x:[],fg:[]};S.r=[{f:wk(S.start),m:mo,t:+$('#ft').value,w:pm($('#fw').value)}];save();T='home';render()},
-apply(){const mo=pm($('#fm').value),t=+$('#ft').value,w=pm($('#fw').value),s=$('#fs').value||'$',d=+$('#fd').value;if(mo<=0)return;
- ask(`Apply this budget from this week onward? Past weeks and months keep their results.${d!=S.fw?'<br><br>Changing the first day of the week regroups past weeks.':''}`,()=>{const f=wk(Date.now());S.r=S.r.filter(r=>r.f!=f);S.r.push({f,m:mo,t,w});S.r.sort((a,b)=>a.f-b.f);S.sym=s;S.fw=d;save();render();toast('Budget updated')})},
+ const sd=pd($('#fsd').value)||ds(Date.now()),ed=pd($('#fed').value);if(ed&&ed<sd){toast('End date must be after the start date');return}
+ S={sym:$('#fs').value||'$',fw:+$('#fd').value,start:sd,end:ed,c0:0,th:'dark',r:[],x:[],fg:[]};S.r=[{f:wk(S.start),m:mo,t:+$('#ft').value,w:pm($('#fw').value)}];save();T='home';render()},
+apply(){const mo=pm($('#fm').value),t=+$('#ft').value,w=pm($('#fw').value),s=$('#fs').value||'$',d=+$('#fd').value,sd=pd($('#fsd').value)||S.start,ed=pd($('#fed').value);if(mo<=0)return;if(ed&&ed<sd){toast('End date must be after the start date');return}
+ ask(`Apply this budget from this week onward? Past weeks and months keep their results.${d!=S.fw?'<br><br>Changing the first day of the week regroups past weeks.':''}${ds(sd)!=ds(S.start)?'<br><br>Changing the start date changes which weeks and expenses are counted.':''}`,()=>{S.sym=s;S.fw=d;S.start=sd;S.end=ed;const f=wk(Date.now());S.r=S.r.filter(r=>r.f!=f);S.r.push({f,m:mo,t,w});S.r.sort((a,b)=>a.f-b.f);save();render();toast('Budget updated')})},
 copy(){const j=JSON.stringify(S);try{navigator.clipboard.writeText(j).then(()=>toast('Backup copied'))}catch(e){}const b=$('#bk');b.value=j;b.select()},
 restore(){try{const j=JSON.parse($('#bk').value);if(!j||!j.r||!j.x)throw 0;ask('Replace all current data with this backup?',()=>{S=j;save();render()})}catch(e){toast('That isn’t a valid backup')}},
 reset(){ask('Erase all expenses and settings on this device? This can’t be undone.',()=>{S=null;try{localStorage.removeItem('bt1')}catch(e){}render()})}};
